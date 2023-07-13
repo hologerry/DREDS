@@ -80,7 +80,7 @@ class SwinDRNet(nn.Module):
         """Forward function."""
 
         rgb = rgb.repeat(1, 3, 1, 1) if rgb.size()[1] == 1 else rgb  # B, C, H, W
-        depth = depth.repeat(1, 3, 1, 1) if depth.size()[1] == 1 else xyz  # B, C, H, W
+        depth = depth.repeat(1, 3, 1, 1) if depth.size()[1] == 1 else depth  # B, C, H, W
 
         # depth = torch.unsqueeze(xyz[:, 2, :, :], 1)
         # depth = depth.repeat(1, 3, 1, 1)

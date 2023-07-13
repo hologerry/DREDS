@@ -368,8 +368,8 @@ class SwinCrossAttentionBlock(nn.Module):
             branch_1 = torch.roll(shifted_x_branch_1, shifts=(self.shift_size, self.shift_size), dims=(1, 2))
             branch_2 = torch.roll(shifted_x_branch_2, shifts=(self.shift_size, self.shift_size), dims=(1, 2))
         else:
-            branch_1 = shifted_branch_1
-            branch_2 = shifted_branch_2
+            branch_1 = shifted_x_branch_1
+            branch_2 = shifted_x_branch_2
 
         if pad_r > 0 or pad_b > 0:
             branch_1 = branch_1[:, :H, :W, :].contiguous()
@@ -380,7 +380,7 @@ class SwinCrossAttentionBlock(nn.Module):
 
         # FFN
         branch_1 = shortcut_1 + self.drop_path(branch_1)
-        branch_2 = shortcut_2 + self.drop_path(branch_1)
+        branch_2 = shortcut_2 + self.drop_path(branch_2)
 
         branch_1 = branch_1 + self.drop_path(self.mlp_branch_1(self.norm2_branch_1(branch_1)))
         branch_2 = branch_2 + self.drop_path(self.mlp_branch_2(self.norm2_branch_2(branch_2)))
