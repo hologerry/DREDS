@@ -1,14 +1,15 @@
-'''Misc functions like functions for reading and saving EXR images using OpenEXR, saving pointclouds, etc.
-'''
+"""Misc functions like functions for reading and saving EXR images using OpenEXR, saving pointclouds, etc.
+"""
 import struct
-import numpy as np
+
 import cv2
 import Imath
+import numpy as np
 import OpenEXR
-from PIL import Image
 import torch
 import torch.nn.functional as F
-# from torchvision.utils import make_grid
+
+from PIL import Image
 
 
 def exr_loader(EXR_PATH, ndim=3):
@@ -27,7 +28,7 @@ def exr_loader(EXR_PATH, ndim=3):
     """
 
     exr_file = OpenEXR.InputFile(EXR_PATH)
-    cm_dw = exr_file.header()['dataWindow']
+    cm_dw = exr_file.header()["dataWindow"]
     size = (cm_dw.max.x - cm_dw.min.x + 1, cm_dw.max.y - cm_dw.min.y + 1)
 
     pt = Imath.PixelType(Imath.PixelType.FLOAT)
@@ -35,7 +36,7 @@ def exr_loader(EXR_PATH, ndim=3):
     if ndim == 3:
         # read channels indivudally
         allchannels = []
-        for c in ['R', 'G', 'B']:
+        for c in ["R", "G", "B"]:
             # transform data to numpy
             channel = np.frombuffer(exr_file.channel(c, pt), dtype=np.float32)
             channel.shape = (size[1], size[0])
@@ -47,14 +48,14 @@ def exr_loader(EXR_PATH, ndim=3):
 
     if ndim == 1:
         # transform data to numpy
-        channel = np.frombuffer(exr_file.channel('R', pt), dtype=np.float32)
+        channel = np.frombuffer(exr_file.channel("R", pt), dtype=np.float32)
         channel.shape = (size[1], size[0])  # Numpy arrays are (row, col)
         exr_arr = np.array(channel)
         return exr_arr
 
 
 def exr_saver(EXR_PATH, ndarr, ndim=3):
-    '''Saves a numpy array as an EXR file with HALF precision (float16)
+    """Saves a numpy array as an EXR file with HALF precision (float16)
     Args:
         EXR_PATH (str): The path to which file will be saved
         ndarr (ndarray): A numpy array containing img data
@@ -63,7 +64,7 @@ def exr_saver(EXR_PATH, ndarr, ndim=3):
                         If ndim = 1, ndarr should be of shape (height, width)
     Returns:
         None
-    '''
+    """
     if ndim == 3:
         # Check params
         if len(ndarr.shape) == 2:
@@ -72,8 +73,10 @@ def exr_saver(EXR_PATH, ndarr, ndim=3):
 
         if ndarr.shape[0] != 3 or len(ndarr.shape) != 3:
             raise ValueError(
-                'The shape of the tensor should be (3 x height x width) for ndim = 3. Given shape is {}'.format(
-                    ndarr.shape))
+                "The shape of the tensor should be (3 x height x width) for ndim = 3. Given shape is {}".format(
+                    ndarr.shape
+                )
+            )
 
         # Convert each channel to strings
         Rs = ndarr[0, :, :].astype(np.float16).tostring()
@@ -83,16 +86,20 @@ def exr_saver(EXR_PATH, ndarr, ndim=3):
         # Write the three color channels to the output file
         HEADER = OpenEXR.Header(ndarr.shape[2], ndarr.shape[1])
         half_chan = Imath.Channel(Imath.PixelType(Imath.PixelType.HALF))
-        HEADER['channels'] = dict([(c, half_chan) for c in "RGB"])
+        HEADER["channels"] = dict([(c, half_chan) for c in "RGB"])
 
         out = OpenEXR.OutputFile(EXR_PATH, HEADER)
-        out.writePixels({'R': Rs, 'G': Gs, 'B': Bs})
+        out.writePixels({"R": Rs, "G": Gs, "B": Bs})
         out.close()
     elif ndim == 1:
         # Check params
         if len(ndarr.shape) != 2:
-            raise ValueError(('The shape of the tensor should be (height x width) for ndim = 1. ' +
-                              'Given shape is {}'.format(ndarr.shape)))
+            raise ValueError(
+                (
+                    "The shape of the tensor should be (height x width) for ndim = 1. "
+                    + "Given shape is {}".format(ndarr.shape)
+                )
+            )
 
         # Convert each channel to strings
         Rs = ndarr[:, :].astype(np.float16).tostring()
@@ -100,32 +107,32 @@ def exr_saver(EXR_PATH, ndarr, ndim=3):
         # Write the color channel to the output file
         HEADER = OpenEXR.Header(ndarr.shape[1], ndarr.shape[0])
         half_chan = Imath.Channel(Imath.PixelType(Imath.PixelType.HALF))
-        HEADER['channels'] = dict([(c, half_chan) for c in "R"])
+        HEADER["channels"] = dict([(c, half_chan) for c in "R"])
 
         out = OpenEXR.OutputFile(EXR_PATH, HEADER)
-        out.writePixels({'R': Rs})
+        out.writePixels({"R": Rs})
         out.close()
 
 
 def save_uint16_png(path, image):
-    '''save weight file - scaled png representation of outlines estimation
+    """save weight file - scaled png representation of outlines estimation
 
-        Args:
-            path (str): path to save the file
-            image (numpy.ndarray): 16-bit single channel image to be saved.
-                                          Shape=(H, W), dtype=np.uint16
-        '''
-    assert image.dtype == np.uint16, ("data type of the array should be np.uint16." + "Got {}".format(image.dtype))
-    assert len(image.shape) == 2, ("Shape of input image should be (H, W)" + "Got {}".format(len(image.shape)))
+    Args:
+        path (str): path to save the file
+        image (numpy.ndarray): 16-bit single channel image to be saved.
+                                      Shape=(H, W), dtype=np.uint16
+    """
+    assert image.dtype == np.uint16, "data type of the array should be np.uint16." + "Got {}".format(image.dtype)
+    assert len(image.shape) == 2, "Shape of input image should be (H, W)" + "Got {}".format(len(image.shape))
 
     array_buffer = image.tobytes()
     img = Image.new("I", image.T.shape)
-    img.frombytes(array_buffer, 'raw', 'I;16')
+    img.frombytes(array_buffer, "raw", "I;16")
     img.save(path)
 
 
 def _normalize_depth_img(depth_img, dtype=np.uint8, min_depth=0.0, max_depth=1.0):
-    '''Converts a floating point depth image to uint8 or uint16 image.
+    """Converts a floating point depth image to uint8 or uint16 image.
     The depth image is first scaled to (0.0, max_depth) and then scaled and converted to given datatype.
 
     Args:
@@ -138,7 +145,7 @@ def _normalize_depth_img(depth_img, dtype=np.uint8, min_depth=0.0, max_depth=1.0
 
     Returns:
         numpy.ndarray: Depth image scaled to given dtype
-    '''
+    """
 
     if dtype != np.uint16 and dtype != np.uint8:
         raise ValueError('Unsupported dtype {}. Must be one of ("np.uint8", "np.uint16")'.format(dtype))
@@ -161,9 +168,10 @@ def _normalize_depth_img(depth_img, dtype=np.uint8, min_depth=0.0, max_depth=1.0
     return depth_img
 
 
-def depth2rgb(depth_img, min_depth=0.0, max_depth=1.5, color_mode=cv2.COLORMAP_JET, reverse_scale=False,
-              dynamic_scaling=False):
-    '''Generates RGB representation of a depth image.
+def depth2rgb(
+    depth_img, min_depth=0.0, max_depth=1.5, color_mode=cv2.COLORMAP_JET, reverse_scale=False, dynamic_scaling=False
+):
+    """Generates RGB representation of a depth image.
     To do so, the depth image has to be normalized by specifying a min and max depth to be considered.
 
     Holes in the depth image (0.0) appear black in color.
@@ -182,12 +190,17 @@ def depth2rgb(depth_img, min_depth=0.0, max_depth=1.5, color_mode=cv2.COLORMAP_J
                                 image, rather that the passed arguments.
     Returns:
         numpy.ndarray: RGB representation of depth image. Shape=(H,W,3)
-    '''
+    """
     # Map depth image to Color Map
     if dynamic_scaling:
-        depth_img_scaled = _normalize_depth_img(depth_img, dtype=np.uint8,
-                                                min_depth=max(depth_img[depth_img > 0].min(), min_depth),    # Add a small epsilon so that min depth does not show up as black (invalid pixels)
-                                                max_depth=min(depth_img.max(), max_depth))
+        depth_img_scaled = _normalize_depth_img(
+            depth_img,
+            dtype=np.uint8,
+            min_depth=max(
+                depth_img[depth_img > 0].min(), min_depth
+            ),  # Add a small epsilon so that min depth does not show up as black (invalid pixels)
+            max_depth=min(depth_img.max(), max_depth),
+        )
     else:
         depth_img_scaled = _normalize_depth_img(depth_img, dtype=np.uint8, min_depth=min_depth, max_depth=max_depth)
 
@@ -206,16 +219,18 @@ def depth2rgb(depth_img, min_depth=0.0, max_depth=1.5, color_mode=cv2.COLORMAP_J
 
 
 def scale_depth(depth_image):
-    '''Convert depth in meters (float32) to a scaled uint16 format as required by depth2depth module.
+    """Convert depth in meters (float32) to a scaled uint16 format as required by depth2depth module.
 
     Args:
         depth_image (numpy.ndarray, float32): Depth Image
 
     Returns:
         numpy.ndarray: scaled depth image. dtype=np.uint16
-    '''
+    """
 
-    assert depth_image.dtype == np.float32, "data type of the array should be float32. Got {}".format(depth_image.dtype)
+    assert depth_image.dtype == np.float32, "data type of the array should be float32. Got {}".format(
+        depth_image.dtype
+    )
     SCALING_FACTOR = 4000
     OUTPUT_DTYPE = np.uint16
 
@@ -228,14 +243,14 @@ def scale_depth(depth_image):
 
 
 def unscale_depth(depth_image):
-    '''Unscale the depth image from uint16 to denote the depth in meters (float32)
+    """Unscale the depth image from uint16 to denote the depth in meters (float32)
 
     Args:
         depth_image (numpy.ndarray, uint16): Depth Image
 
     Returns:
         numpy.ndarray: unscaled depth image. dtype=np.float32
-    '''
+    """
 
     assert depth_image.dtype == np.uint16, "data type of the array should be uint16. Got {}".format(depth_image.dtype)
     SCALING_FACTOR = 4000
@@ -243,8 +258,8 @@ def unscale_depth(depth_image):
     return depth_image.astype(np.float32) / SCALING_FACTOR
 
 
-def normal_to_rgb(normals_to_convert, output_dtype='float'):
-    '''Converts a surface normals array into an RGB image.
+def normal_to_rgb(normals_to_convert, output_dtype="float"):
+    """Converts a surface normals array into an RGB image.
     Surface normals are represented in a range of (-1,1),
     This is converted to a range of (0,255) for a numpy image, or a range of (0,1) to represent PIL Image.
 
@@ -255,15 +270,17 @@ def normal_to_rgb(normals_to_convert, output_dtype='float'):
         output_dtype (str): format of output, possibel values = ['float', 'uint8']
                             if 'float', range of output (0,1)
                             if 'uint8', range of output (0,255)
-    '''
+    """
     camera_normal_rgb = (normals_to_convert + 1) / 2
-    if output_dtype == 'uint8':
+    if output_dtype == "uint8":
         camera_normal_rgb *= 255
         camera_normal_rgb = camera_normal_rgb.astype(np.uint8)
-    elif output_dtype == 'float':
+    elif output_dtype == "float":
         pass
     else:
-        raise NotImplementedError('Possible values for "output_dtype" are only float and uint8. received value {}'.format(output_dtype))
+        raise NotImplementedError(
+            'Possible values for "output_dtype" are only float and uint8. received value {}'.format(output_dtype)
+        )
 
     return camera_normal_rgb
 
@@ -290,8 +307,9 @@ def _get_point_cloud(color_image, depth_image, fx, fy, cx, cy):
 
     image_height = depth_image.shape[0]
     image_width = depth_image.shape[1]
-    pixel_x, pixel_y = np.meshgrid(np.linspace(0, image_width - 1, image_width),
-                                   np.linspace(0, image_height - 1, image_height))
+    pixel_x, pixel_y = np.meshgrid(
+        np.linspace(0, image_width - 1, image_width), np.linspace(0, image_height - 1, image_height)
+    )
     camera_points_x = np.multiply(pixel_x - camera_intrinsics[0, 2], (depth_image / camera_intrinsics[0, 0]))
     camera_points_y = np.multiply(pixel_y - camera_intrinsics[1, 2], (depth_image / camera_intrinsics[1, 1]))
     camera_points_z = depth_image
@@ -317,24 +335,33 @@ def write_point_cloud(filename, color_image, depth_image, fx, fy, cx, cy):
     xyz_points, rgb_points = _get_point_cloud(color_image, depth_image, fx, fy, cx, cy)
 
     # Write header of .ply file
-    with open(filename, 'wb') as fid:
-        fid.write(bytes('ply\n', 'utf-8'))
-        fid.write(bytes('format binary_little_endian 1.0\n', 'utf-8'))
-        fid.write(bytes('element vertex %d\n' % xyz_points.shape[0], 'utf-8'))
-        fid.write(bytes('property float x\n', 'utf-8'))
-        fid.write(bytes('property float y\n', 'utf-8'))
-        fid.write(bytes('property float z\n', 'utf-8'))
-        fid.write(bytes('property uchar red\n', 'utf-8'))
-        fid.write(bytes('property uchar green\n', 'utf-8'))
-        fid.write(bytes('property uchar blue\n', 'utf-8'))
-        fid.write(bytes('end_header\n', 'utf-8'))
+    with open(filename, "wb") as fid:
+        fid.write(bytes("ply\n", "utf-8"))
+        fid.write(bytes("format binary_little_endian 1.0\n", "utf-8"))
+        fid.write(bytes("element vertex %d\n" % xyz_points.shape[0], "utf-8"))
+        fid.write(bytes("property float x\n", "utf-8"))
+        fid.write(bytes("property float y\n", "utf-8"))
+        fid.write(bytes("property float z\n", "utf-8"))
+        fid.write(bytes("property uchar red\n", "utf-8"))
+        fid.write(bytes("property uchar green\n", "utf-8"))
+        fid.write(bytes("property uchar blue\n", "utf-8"))
+        fid.write(bytes("end_header\n", "utf-8"))
 
         # Write 3D points to .ply file
         for i in range(xyz_points.shape[0]):
             fid.write(
                 bytearray(
-                    struct.pack("fffccc", xyz_points[i, 0], xyz_points[i, 1], xyz_points[i, 2],
-                                rgb_points[i, 0].tostring(), rgb_points[i, 1].tostring(), rgb_points[i, 2].tostring())))
+                    struct.pack(
+                        "fffccc",
+                        xyz_points[i, 0],
+                        xyz_points[i, 1],
+                        xyz_points[i, 2],
+                        rgb_points[i, 0].tostring(),
+                        rgb_points[i, 1].tostring(),
+                        rgb_points[i, 2].tostring(),
+                    )
+                )
+            )
 
 
 def imdenormalize(img, mean, std, to_bgr=False, to_rgb=False):
@@ -343,14 +370,14 @@ def imdenormalize(img, mean, std, to_bgr=False, to_rgb=False):
     std = std.reshape(1, -1).astype(np.float64)
     img = cv2.multiply(img, std)  # make a copy
     cv2.add(img, mean, img)  # inplace
-    #if to_bgr:
+    # if to_bgr:
     #    cv2.cvtColor(img, cv2.COLOR_RGB2BGR, img)  # inplace
     if to_rgb:
-       cv2.cvtColor(img, cv2.COLOR_BGR2RGB, img)  # inplace
-    return 255-img
+        cv2.cvtColor(img, cv2.COLOR_BGR2RGB, img)  # inplace
+    return 255 - img
 
 
-def depth_to_xyz(depthImage, f, scale_h=1., scale_w=1.):
+def depth_to_xyz(depthImage, f, scale_h=1.0, scale_w=1.0):
     # input depth image[B, 1, H, W]
     # output xyz image[B, 3, H, W]
 
@@ -358,8 +385,8 @@ def depth_to_xyz(depthImage, f, scale_h=1., scale_w=1.):
     fy = f * scale_h
     B, C, H, W = depthImage.shape
     device = depthImage.device
-    du = W//2 - 0.5
-    dv = H//2 - 0.5
+    du = W // 2 - 0.5
+    dv = H // 2 - 0.5
 
     xyz = torch.zeros([B, H, W, 3], device=device)
     imageIndexX = torch.arange(0, W, 1, device=device) - du
@@ -368,8 +395,8 @@ def depth_to_xyz(depthImage, f, scale_h=1., scale_w=1.):
     if B == 1:
         depthImage = depthImage.unsqueeze(0)
 
-    xyz[:, :, :, 0] = depthImage/fx * imageIndexX
-    xyz[:, :, :, 1] = (depthImage.transpose(1, 2)/fy * imageIndexY.T).transpose(1, 2)
+    xyz[:, :, :, 0] = depthImage / fx * imageIndexX
+    xyz[:, :, :, 1] = (depthImage.transpose(1, 2) / fy * imageIndexY.T).transpose(1, 2)
     xyz[:, :, :, 2] = depthImage
     xyz = xyz.permute(0, 3, 1, 2).to(device)
     return xyz
@@ -388,7 +415,7 @@ def gradient(x):
     bottom = F.pad(x, [0, 0, 0, 1])[:, :, 1:, :]
 
     # dx, dy = torch.abs(right - left), torch.abs(bottom - top)
-    dx, dy = right - left, bottom - top 
+    dx, dy = right - left, bottom - top
     # dx will always have zeros in the last column, right-left
     # dy will always have zeros in the last row,    bottom-top
     dx[:, :, :, -1] = 0
@@ -399,11 +426,11 @@ def gradient(x):
 
 def get_surface_normal(x, f, scale_h, scale_w):
     xyz = depth_to_xyz(x, f, scale_h, scale_w)
-    dx,dy = gradient(xyz)
+    dx, dy = gradient(xyz)
     surface_normal = torch.cross(dx, dy, dim=1)
-    surface_normal = surface_normal / (torch.norm(surface_normal,dim=1,keepdim=True)+1e-8)
+    surface_normal = surface_normal / (torch.norm(surface_normal, dim=1, keepdim=True) + 1e-8)
     return surface_normal, dx, dy
-   
+
 
 # def create_grid_image(inputs, outputs, labels, max_num_images_to_save=3):
 #     '''Make a grid of images for display purposes
@@ -433,33 +460,34 @@ def get_surface_normal(x, f, scale_h, scale_w):
 
 #     return grid_image
 
+
 class label2color(object):
-    def __init__(self,class_num):
+    def __init__(self, class_num):
         self.class_num = class_num
 
         self.colors = self.create_pascal_label_colormap(self.class_num)
 
-    def to_color_img(self,imgs):
+    def to_color_img(self, imgs):
         # img:bs,3,height,width
         color_imgs = []
         for i in range(imgs.shape[0]):
-            score_i = imgs[i,...]
+            score_i = imgs[i, ...]
             score_i = score_i.cpu().numpy()
-            score_i = np.transpose(score_i,(1,2,0))
+            score_i = np.transpose(score_i, (1, 2, 0))
             # np.save('pre.npy',score_i)
-            score_i = np.argmax(score_i,axis=2)
+            score_i = np.argmax(score_i, axis=2)
             color_imgs.append(self.colors[score_i])
         return color_imgs
 
-    def single_img_color(self,img):
+    def single_img_color(self, img):
         score_i = img
         score_i = score_i.numpy()
-        score_i = np.transpose(score_i,(1,2,0))
+        score_i = np.transpose(score_i, (1, 2, 0))
         # np.save('pre.npy',score_i)
         # score_i = np.argmax(score_i,axis=2)
         return self.colors[score_i]
 
-    def bit_get(self,val, idx):
+    def bit_get(self, val, idx):
         """Gets the bit value.
         Args:
           val: Input value, int or numpy int array.
@@ -469,7 +497,7 @@ class label2color(object):
         """
         return (val >> idx) & 1
 
-    def create_pascal_label_colormap(self,class_num):
+    def create_pascal_label_colormap(self, class_num):
         """Creates a label colormap used in PASCAL VOC segmentation benchmark.
         Returns:
           A colormap for visualizing segmentation results.

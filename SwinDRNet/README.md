@@ -14,7 +14,7 @@ $ sudo apt install libopenexr-dev zlib1g-dev openexr
 - ### Install pip dependencies
 We have tested on Ubuntu 20.04 with an NVIDIA GeForce RTX 2080 and NVIDIA GeForce RTX 3090 with Python 3.7. The code may work on other systems.Install the dependencies using pip:
 ```bash
-$ pip install -r requirments.txt
+$ pip install -r requirements.txt
 ```
 - ### Download dataset and models
 
@@ -39,7 +39,7 @@ $ cd ..
 2. Extract the downloaded dataset and merge the train split of DREDS-CatKnown following the file structure.
 ```
 data
-├── DREDS                              
+├── DREDS
 │   ├── DREDS-CatKnown
 │   │   ├── train
 │   │   │   ├── 00001

@@ -1,19 +1,21 @@
-'''
+"""
 This module contains the loss functions used to train the surface normals estimation models.
-'''
+"""
 
 import math
+
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
 import torch.nn.functional as F
+
 from termcolor import colored
 from torch.nn.modules import loss
 
 
-def loss_fn_l1_with_mask(input_vec, target_vec, masks=None, reduction='sum'):
+def loss_fn_l1_with_mask(input_vec, target_vec, masks=None, reduction="sum"):
     B, _, H, W = target_vec.shape
-    l1 = nn.L1Loss(reduction='none')
+    l1 = nn.L1Loss(reduction="none")
     loss_l1 = l1(input_vec, target_vec)
     loss_l1 = torch.sum(loss_l1, dim=1, keepdim=True)
     if masks == None:
@@ -26,11 +28,11 @@ def loss_fn_l1_with_mask(input_vec, target_vec, masks=None, reduction='sum'):
         return loss_instance, loss_background
 
 
-def loss_fn_l1(input_vec, target_vec, reduction='sum'):
-    l1 = nn.L1Loss(reduction='none')
+def loss_fn_l1(input_vec, target_vec, reduction="sum"):
+    l1 = nn.L1Loss(reduction="none")
     loss_l1 = l1(input_vec, target_vec)
     loss_l1 = torch.sum(loss_l1, dim=1, keepdim=False)
-    '''
+    """
     # calculate loss only on valid pixels
     # mask_invalid_pixels = (target_vec[:, 0, :, :] == -1.0) & (target_vec[:, 1, :, :] == -1.0) & (target_vec[:, 2, :, :] == -1.0)
     mask_invalid_pixels = torch.all(target_vec == -1, dim = 1) & torch.all(target_vec == 0, dim = 1)
@@ -49,12 +51,12 @@ def loss_fn_l1(input_vec, target_vec, reduction='sum'):
     else:
         raise Exception(
             'Invalid value for reduction  parameter passed. Please use \'elementwise_mean\' or \'none\''.format())
-    '''
+    """
     return loss_l1.sum()
 
 
-def loss_fn_cosine(input_vec, target_vec, reduction='sum'):
-    '''A cosine loss function for use with surface normals estimation.
+def loss_fn_cosine(input_vec, target_vec, reduction="sum"):
+    """A cosine loss function for use with surface normals estimation.
     Calculates the cosine loss between 2 vectors. Both should be of the same size.
 
     Arguments:
@@ -74,7 +76,7 @@ def loss_fn_cosine(input_vec, target_vec, reduction='sum'):
 
     Returns:
         tensor -- A single mean value of cosine loss or a matrix of elementwise cosine loss.
-    '''
+    """
     cos = nn.CosineSimilarity(dim=1, eps=1e-6)
     loss_cos = 1.0 - cos(input_vec, target_vec)
 
@@ -87,15 +89,16 @@ def loss_fn_cosine(input_vec, target_vec, reduction='sum'):
     total_valid_pixels = (~mask_invalid_pixels).sum()
     error_output = loss_cos_sum / total_valid_pixels
 
-    if reduction == 'elementwise_mean':
+    if reduction == "elementwise_mean":
         loss_cos = error_output
-    elif reduction == 'sum':
+    elif reduction == "sum":
         loss_cos = loss_cos_sum
-    elif reduction == 'none':
+    elif reduction == "none":
         loss_cos = loss_cos
     else:
         raise Exception(
-            'Invalid value for reduction  parameter passed. Please use \'elementwise_mean\' or \'none\''.format())
+            "Invalid value for reduction  parameter passed. Please use 'elementwise_mean' or 'none'".format()
+        )
 
     return loss_cos
 
@@ -104,11 +107,11 @@ class Sobel(nn.Module):
     def __init__(self):
         super(Sobel, self).__init__()
         self.edge_conv = nn.Conv2d(1, 2, kernel_size=3, stride=1, padding=1, bias=False)
-        edge_kx = np.array([[1., 0., -1.], [2., 0., -2.], [1., 0., -1.]])
-        edge_ky = np.array([[1., 2., 1.], [0., 0., 0.], [-1., -2., -1.]])
+        edge_kx = np.array([[1.0, 0.0, -1.0], [2.0, 0.0, -2.0], [1.0, 0.0, -1.0]])
+        edge_ky = np.array([[1.0, 2.0, 1.0], [0.0, 0.0, 0.0], [-1.0, -2.0, -1.0]])
         edge_k = np.stack((edge_kx, edge_ky))
 
-        #edge_k = torch.from_numpy(edge_k).double().view(2, 1, 3, 3)
+        # edge_k = torch.from_numpy(edge_k).double().view(2, 1, 3, 3)
         edge_k = torch.from_numpy(edge_k).float().view(2, 1, 3, 3)
         self.edge_conv.weight = nn.Parameter(edge_k)
 
@@ -148,21 +151,20 @@ class GradientLoss(nn.Module):
         # loss_dx = torch.abs(input_grad_dx - target_grad_dx).mean()#torch.log(torch.abs(input_grad_dx - target_grad_dx) + 0.5).mean()
         # loss_dy = torch.abs(input_grad_dy - target_grad_dy).mean()#torch.log(torch.abs(input_grad_dy - target_grad_dy) + 0.5).mean()
 
-
-        loss_dx = torch.abs(input_grad_dx - target_grad_dx)#torch.log(torch.abs(input_grad_dx - target_grad_dx) + 0.5).mean()
-        loss_dy = torch.abs(input_grad_dy - target_grad_dy)#torch.log(torch.abs(input_grad_dy - target_grad_dy) + 0.5).mean()
-
+        loss_dx = torch.abs(
+            input_grad_dx - target_grad_dx
+        )  # torch.log(torch.abs(input_grad_dx - target_grad_dx) + 0.5).mean()
+        loss_dy = torch.abs(
+            input_grad_dy - target_grad_dy
+        )  # torch.log(torch.abs(input_grad_dy - target_grad_dy) + 0.5).mean()
 
         # loss_dx = torch.log(torch.abs(input_grad_dx - target_grad_dx) + 0.5)
-        # loss_dy = torch.log(torch.abs(input_grad_dy - target_grad_dy) + 0.5)     
-         
+        # loss_dy = torch.log(torch.abs(input_grad_dy - target_grad_dy) + 0.5)
+
         # loss_dx = torch.log(torch.abs(input_grad_dx - target_grad_dx) + 1.0)
         # loss_dy = torch.log(torch.abs(input_grad_dy - target_grad_dy) + 1.0)
 
         return loss_dx + loss_dy
-
-
-
 
 
 def metric_calculator_batch(input_vec, target_vec, mask=None):
@@ -186,17 +188,17 @@ def metric_calculator_batch(input_vec, target_vec, mask=None):
 
     """
     if len(input_vec.shape) != 4:
-        raise ValueError('Shape of tensor must be [B, C, H, W]. Got shape: {}'.format(input_vec.shape))
+        raise ValueError("Shape of tensor must be [B, C, H, W]. Got shape: {}".format(input_vec.shape))
     if len(target_vec.shape) != 4:
-        raise ValueError('Shape of tensor must be [B, C, H, W]. Got shape: {}'.format(target_vec.shape))
+        raise ValueError("Shape of tensor must be [B, C, H, W]. Got shape: {}".format(target_vec.shape))
 
     INVALID_PIXEL_VALUE = 0  # All 3 channels should have this value
     mask_valid_pixels = ~(torch.all(target_vec == INVALID_PIXEL_VALUE, dim=1))
     if mask is not None:
         mask_valid_pixels = (mask_valid_pixels.float() * mask).byte()
     total_valid_pixels = mask_valid_pixels.sum()
-    if (total_valid_pixels == 0):
-        print('[WARN]: Image found with ZERO valid pixels to calc metrics')
+    if total_valid_pixels == 0:
+        print("[WARN]: Image found with ZERO valid pixels to calc metrics")
         return torch.tensor(0), torch.tensor(0), torch.tensor(0), torch.tensor(0), torch.tensor(0), mask_valid_pixels
 
     cos = nn.CosineSimilarity(dim=1, eps=1e-6)
@@ -242,9 +244,9 @@ def metric_calculator(input_vec, target_vec, mask=None):
 
     """
     if len(input_vec.shape) != 3:
-        raise ValueError('Shape of tensor must be [C, H, W]. Got shape: {}'.format(input_vec.shape))
+        raise ValueError("Shape of tensor must be [C, H, W]. Got shape: {}".format(input_vec.shape))
     if len(target_vec.shape) != 3:
-        raise ValueError('Shape of tensor must be [C, H, W]. Got shape: {}'.format(target_vec.shape))
+        raise ValueError("Shape of tensor must be [C, H, W]. Got shape: {}".format(target_vec.shape))
 
     INVALID_PIXEL_VALUE = 0  # All 3 channels should have this value
     mask_valid_pixels = ~(torch.all(target_vec == INVALID_PIXEL_VALUE, dim=0))
@@ -252,8 +254,8 @@ def metric_calculator(input_vec, target_vec, mask=None):
         mask_valid_pixels = (mask_valid_pixels.float() * mask).byte()
     total_valid_pixels = mask_valid_pixels.sum()
     # TODO: How to deal with a case with zero valid pixels?
-    if (total_valid_pixels == 0):
-        print('[WARN]: Image found with ZERO valid pixels to calc metrics')
+    if total_valid_pixels == 0:
+        print("[WARN]: Image found with ZERO valid pixels to calc metrics")
         return torch.tensor(0), torch.tensor(0), torch.tensor(0), torch.tensor(0), torch.tensor(0), mask_valid_pixels
 
     cos = nn.CosineSimilarity(dim=0, eps=1e-6)
@@ -279,8 +281,8 @@ def metric_calculator(input_vec, target_vec, mask=None):
 
 
 # TODO: Fix the loss func to ignore invalid pixels
-def loss_fn_radians(input_vec, target_vec, reduction='sum'):
-    '''Loss func for estimation of surface normals. Calculated the angle between 2 vectors
+def loss_fn_radians(input_vec, target_vec, reduction="sum"):
+    """Loss func for estimation of surface normals. Calculated the angle between 2 vectors
     by taking the inverse cos of cosine loss.
 
     Arguments:
@@ -300,20 +302,21 @@ def loss_fn_radians(input_vec, target_vec, reduction='sum'):
 
     Returns:
         tensor -- Loss from 2 input vectors. Size depends on value of reduction arg.
-    '''
+    """
 
     cos = nn.CosineSimilarity(dim=1, eps=1e-6)
     loss_cos = cos(input_vec, target_vec)
     loss_rad = torch.acos(loss_cos)
-    if reduction == 'elementwise_mean':
+    if reduction == "elementwise_mean":
         loss_rad = torch.mean(loss_rad)
-    elif reduction == 'sum':
+    elif reduction == "sum":
         loss_rad = torch.sum(loss_rad)
-    elif reduction == 'none':
+    elif reduction == "none":
         pass
     else:
         raise Exception(
-            'Invalid value for reduction  parameter passed. Please use \'elementwise_mean\' or \'none\''.format())
+            "Invalid value for reduction  parameter passed. Please use 'elementwise_mean' or 'none'".format()
+        )
 
     return loss_rad
 
@@ -342,11 +345,11 @@ def cross_entropy2d(logit, target, ignore_index=255, weight=None, batch_average=
     target = target.squeeze(1)
 
     if weight is None:
-        criterion = nn.CrossEntropyLoss(weight=weight, ignore_index=ignore_index, reduction='sum')
+        criterion = nn.CrossEntropyLoss(weight=weight, ignore_index=ignore_index, reduction="sum")
     else:
-        criterion = nn.CrossEntropyLoss(weight=torch.tensor(weight, dtype=torch.float32),
-                                        ignore_index=ignore_index,
-                                        reduction='sum')
+        criterion = nn.CrossEntropyLoss(
+            weight=torch.tensor(weight, dtype=torch.float32), ignore_index=ignore_index, reduction="sum"
+        )
 
     loss = criterion(logit, target.long())
 
@@ -377,22 +380,20 @@ def metric_calculator_batch_with_mask(input_vec, target_vec, mask=None):
 
     """
     if len(input_vec.shape) != 4:
-        raise ValueError('Shape of tensor must be [B, C, H, W]. Got shape: {}'.format(input_vec.shape))
+        raise ValueError("Shape of tensor must be [B, C, H, W]. Got shape: {}".format(input_vec.shape))
     if len(target_vec.shape) != 4:
-        raise ValueError('Shape of tensor must be [B, C, H, W]. Got shape: {}'.format(target_vec.shape))
+        raise ValueError("Shape of tensor must be [B, C, H, W]. Got shape: {}".format(target_vec.shape))
 
     INVALID_PIXEL_VALUE = 0  # All 3 channels should have this value
     mask_valid_pixels = ~(torch.all(target_vec == INVALID_PIXEL_VALUE, dim=1)).cuda()
-
 
     if mask is not None:
         mask_valid_pixels_instance = (mask_valid_pixels.float() * mask).byte()
         mask_valid_pixels_background = (mask_valid_pixels.float() * (1 - mask)).byte()
 
-
     total_valid_pixels = mask_valid_pixels_instance.sum()
-    if (total_valid_pixels == 0):
-        print('[WARN]: Image found with ZERO valid pixels to calc metrics')
+    if total_valid_pixels == 0:
+        print("[WARN]: Image found with ZERO valid pixels to calc metrics")
         return torch.tensor(0), torch.tensor(0), torch.tensor(0), torch.tensor(0), torch.tensor(0), mask_valid_pixels
 
     cos = nn.CosineSimilarity(dim=1, eps=1e-6)
@@ -416,10 +417,9 @@ def metric_calculator_batch_with_mask(input_vec, target_vec, mask=None):
 
     loss_instance = (loss_deg_mean, loss_deg_median, percentage_1, percentage_2, percentage_3)
 
-
     total_valid_pixels = mask_valid_pixels_background.sum()
-    if (total_valid_pixels == 0):
-        print('[WARN]: Image found with ZERO valid pixels to calc metrics')
+    if total_valid_pixels == 0:
+        print("[WARN]: Image found with ZERO valid pixels to calc metrics")
         return torch.tensor(0), torch.tensor(0), torch.tensor(0), torch.tensor(0), torch.tensor(0), mask_valid_pixels
 
     # Mask out all invalid pixels and calc mean, median
@@ -434,7 +434,6 @@ def metric_calculator_batch_with_mask(input_vec, target_vec, mask=None):
 
     loss_background = (loss_deg_mean, loss_deg_median, percentage_1, percentage_2, percentage_3)
 
-  
     return loss_instance, loss_background
 
 
@@ -458,7 +457,7 @@ def reduce_loss(loss, reduction):
         return loss.sum()
 
 
-def weight_reduce_loss(loss, weight=None, reduction='mean', avg_factor=None):
+def weight_reduce_loss(loss, weight=None, reduction="mean", avg_factor=None):
     """Apply element-wise weight and reduce loss.
 
     Args:
@@ -482,9 +481,9 @@ def weight_reduce_loss(loss, weight=None, reduction='mean', avg_factor=None):
         loss = reduce_loss(loss, reduction)
     else:
         # if reduction is mean, then average the loss by avg_factor
-        if reduction == 'mean':
+        if reduction == "mean":
             loss = loss.sum() / avg_factor
         # if reduction is 'none', then do nothing, otherwise raise an error
-        elif reduction != 'none':
+        elif reduction != "none":
             raise ValueError('avg_factor can not be used with reduction="sum"')
     return loss
