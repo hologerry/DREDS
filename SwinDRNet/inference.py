@@ -114,7 +114,7 @@ config = get_config(args)
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 device_list = [0]
-model_path = "trained_model/model.pth"
+model_path = "./models/checkpoint-iter-00000020.pth"
 
 
 if __name__ == "__main__":
@@ -139,8 +139,7 @@ if __name__ == "__main__":
 
     metrics_instance, metrics_background = _trainer.inference()
     with open(os.path.join(args.output_dir, "result.txt"), "w") as f:
-        f.write("instance metrics: ")
-        f.write("\n")
+        f.write("instance metrics:\n")
         for key in metrics_instance:
             f.write(key)
             f.write(": ")
@@ -150,8 +149,7 @@ if __name__ == "__main__":
         f.write("\n")
         f.write("\n")
 
-        f.write("background metrics: ")
-        f.write("\n")
+        f.write("background metrics:\n")
         for key in metrics_background:
             f.write(key)
             f.write(": ")
