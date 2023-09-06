@@ -25,6 +25,7 @@ parser.add_argument(
     "--val_data_path", type=str, default="/data/DREDS/DREDS-CatKnown/test", help="root dir for validation dataset"
 )
 parser.add_argument("--val_data_type", type=str, default="sim", help="type of val dataset (real/sim)")
+parser.add_argument("--val_object_type", type=str, default="bottle", help="")
 
 # parser.add_argument('--val_data_path', type=str,
 #                     default='/data/DREDS/DREDS-CatNovel', help='root dir for data')

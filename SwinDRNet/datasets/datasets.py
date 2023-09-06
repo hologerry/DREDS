@@ -216,6 +216,7 @@ class SwinDRNetDataset(Dataset):
         transform=None,
         input_only=None,
         material_valid={"transparent": True, "specular": True, "diffuse": False},
+        object_type=None,
     ):
         super().__init__()
         self.rgb_dir = rgb_dir
@@ -229,6 +230,8 @@ class SwinDRNetDataset(Dataset):
 
         self.transform = transform
         self.input_only = input_only
+
+        self.object_type = object_type
 
         # Create list of filenames
         self._datalist_rgb = []
@@ -381,6 +384,19 @@ class SwinDRNetDataset(Dataset):
         if self.mask_diffuse:
             _mask_ins[_mask_material == 0] = 0
             _mask_ins[_mask_material == 1] = 0
+
+        if self.object_type is not None:
+            if self.object_type == "bottle":
+                print("setting bottle")
+                for i in range(len(_meta)):
+                    if _meta[i]["label"] != 1:
+                        _mask_ins[_mask == _meta[i]["index"]] = 0
+
+            elif self.object_type == "mug":
+                print("setting mug")
+                for i in range(len(_meta)):
+                    if _meta[i]["label"] != 6:
+                        _mask_ins[_mask == _meta[i]["index"]] = 0
 
         # semantatic segmentation mask
         _mask_sem = np.full(_mask.shape, 8)  # , 0）

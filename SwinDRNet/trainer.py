@@ -71,6 +71,7 @@ class SwinDRNetTrainer:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.val_data_type = args.val_data_type
+        self.val_object_type = args.val_object_type
 
         # realsense D415
         self.fx_real_input = 918.295227050781
@@ -246,6 +247,7 @@ class SwinDRNetTrainer:
                     transform=augs_test,
                     input_only=None,
                     material_valid=self.material_mask,
+                    object_type=self.val_object_type,
                 )
             db_val_list.append(db_val)
 
