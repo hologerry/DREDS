@@ -163,3 +163,4 @@ cython_debug/
 *.pth
 data
 results
+vis_tmp

@@ -264,15 +264,22 @@ class SwinDRNetDataset(Dataset):
         """
         Returns an item from the dataset at the given index.
         """
+        another_index = np.random.randint(0, len(self._datalist_rgb))
 
         os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
         # Open rgb images
         rgb_path = self._datalist_rgb[index]
+        if not os.path.exists(rgb_path) or os.path.getsize(rgb_path) == 0:
+            print(f"rgb_path {rgb_path} not good")
+            return self.__getitem__(another_index)
         _rgb = Image.open(rgb_path).convert("RGB")
         _rgb = np.array(_rgb)
 
         # Open simulated depth images
         sim_depth_path = self._datalist_sim_depth[index]
+        if not os.path.exists(sim_depth_path) or os.path.getsize(sim_depth_path) == 0:
+            print(f"sim_depth_path {sim_depth_path} not good")
+            return self.__getitem__(another_index)
         _sim_depth = cv2.imread(sim_depth_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
         if len(_sim_depth.shape) == 3:
             _sim_depth = _sim_depth[:, :, 0]
@@ -280,6 +287,9 @@ class SwinDRNetDataset(Dataset):
 
         # Open synthetic depth images
         syn_depth_path = self._datalist_syn_depth[index]
+        if not os.path.exists(syn_depth_path) or os.path.getsize(syn_depth_path) == 0:
+            print(f"syn_depth_path {syn_depth_path} not good")
+            return self.__getitem__(another_index)
         _syn_depth = cv2.imread(syn_depth_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
         if len(_syn_depth.shape) == 3:
             _syn_depth = _syn_depth[:, :, 0]
@@ -287,11 +297,17 @@ class SwinDRNetDataset(Dataset):
 
         # Open nocs images
         nocs_path = self._datalist_nocs[index]
+        if not os.path.exists(nocs_path) or os.path.getsize(nocs_path) == 0:
+            print(f"nocs_path {nocs_path} not good")
+            return self.__getitem__(another_index)
         _nocs = Image.open(nocs_path).convert("RGB")
         _nocs = np.array(_nocs) / 255.0
 
         # Open mask images
         mask_path = self._datalist_mask[index]
+        if not os.path.exists(mask_path) or os.path.getsize(mask_path) == 0:
+            print(f"mask_path {mask_path} not good")
+            return self.__getitem__(another_index)
 
         if mask_path.split(".")[-1] == "exr":
             _mask = exr_loader(mask_path, ndim=1)
@@ -301,6 +317,9 @@ class SwinDRNetDataset(Dataset):
 
         # Open meta files
         meta_path = self._datalist_meta[index]
+        if not os.path.exists(meta_path) or os.path.getsize(meta_path) == 0:
+            print(f"meta_path {meta_path} not good")
+            return self.__getitem__(another_index)
         _meta = load_meta(meta_path)
 
         ori_h = _sim_depth.shape[1]
@@ -387,16 +406,16 @@ class SwinDRNetDataset(Dataset):
 
         if self.object_type is not None:
             if self.object_type == "bottle":
-                print("setting bottle")
+                # print("setting bottle")
                 for i in range(len(_meta)):
                     if _meta[i]["label"] != 1:
-                        _mask_ins[_mask == _meta[i]["index"]] = 0
+                        _mask_ins[_mask == _meta[i]["index"]] = 1
 
             elif self.object_type == "mug":
-                print("setting mug")
+                # print("setting mug")
                 for i in range(len(_meta)):
                     if _meta[i]["label"] != 6:
-                        _mask_ins[_mask == _meta[i]["index"]] = 0
+                        _mask_ins[_mask == _meta[i]["index"]] = 1
 
         # semantatic segmentation mask
         _mask_sem = np.full(_mask.shape, 8)  # , 0）
@@ -409,6 +428,11 @@ class SwinDRNetDataset(Dataset):
 
         _mask_sem = _mask_sem[..., np.newaxis]
         _mask_ins = _mask_ins[..., np.newaxis]
+        if index < 4:
+            os.makedirs("vis_tmp", exist_ok=True)
+            cv2.imwrite(f"vis_tmp/color_{index}.png", _rgb)
+            cv2.imwrite(f"vis_tmp/mask_{index}.png", _mask_ins * 255)
+            print(f"vis_tmp/color_{index}.png saved")
         _mask_ins_without_other = _mask_ins_without_other[..., np.newaxis]
 
         _mask_sem_tensor = transforms.ToTensor()(_mask_sem)
@@ -460,7 +484,7 @@ class SwinDRNetDataset(Dataset):
             ValueError: Number of images and labels do not match
         """
 
-        # generate rgb iamge paths list
+        # generate rgb image paths list
         assert os.path.isdir(rgb_dir), 'Dataloader given rgbs directory that does not exist: "%s"' % (rgb_dir)
         for ext in self._extension_rgb:
             rgb_search_str = os.path.join(rgb_dir, "*/*" + ext)
@@ -485,12 +509,12 @@ class SwinDRNetDataset(Dataset):
                     sim_depth_search_str
                 )
             )
-        if num_sim_depth != num_rgb:
-            raise ValueError(
-                "The number of simulation depth images and rgb images do not match. Please check data,"
-                + "found {} simulation depth images and {} rgb images in dirs:\n".format(num_sim_depth, num_rgb)
-                + "simulation depth images: {}\nrgb images: {}\n".format(syn_depth_dir, rgb_dir)
-            )
+        # if num_sim_depth != num_rgb:
+        #     raise ValueError(
+        #         "The number of simulation depth images and rgb images do not match. Please check data,"
+        #         + "found {} simulation depth images and {} rgb images in dirs:\n".format(num_sim_depth, num_rgb)
+        #         + "simulation depth images: {}\nrgb images: {}\n".format(syn_depth_dir, rgb_dir)
+        #     )
 
         # generate synthetic depth image paths list
         assert os.path.isdir(
@@ -506,15 +530,15 @@ class SwinDRNetDataset(Dataset):
             raise ValueError(
                 "No synthetic depth images found in given directory. Searched for {}".format(syn_depth_search_str)
             )
-        if num_syn_depth != num_rgb:
-            raise ValueError(
-                "The number of synthetic depth images and rgb images do not match. Please check data,"
-                + "found {} synthetic depth images and {} rgb images in dirs:\n".format(num_syn_depth, num_rgb)
-                + "synthetic depth images: {}\nrgb images: {}\n".format(syn_depth_dir, rgb_dir)
-            )
+        # if num_syn_depth != num_rgb:
+        #     raise ValueError(
+        #         "The number of synthetic depth images and rgb images do not match. Please check data,"
+        #         + "found {} synthetic depth images and {} rgb images in dirs:\n".format(num_syn_depth, num_rgb)
+        #         + "synthetic depth images: {}\nrgb images: {}\n".format(syn_depth_dir, rgb_dir)
+        #     )
 
         # generate nocs image paths list
-        assert os.path.isdir(nocs_dir), 'Dataloader given nocs iamges directory that does not exist: "%s"' % (nocs_dir)
+        assert os.path.isdir(nocs_dir), 'Dataloader given nocs images directory that does not exist: "%s"' % (nocs_dir)
         for ext in self._extension_nocs:
             nocs_search_str = os.path.join(nocs_dir, "*/*" + ext)
             nocs_paths = sorted(glob.glob(nocs_search_str))
@@ -530,15 +554,15 @@ class SwinDRNetDataset(Dataset):
 
         if num_nocs == 0:
             raise ValueError("No nocs images found in given directory. Searched for {}".format(nocs_search_str))
-        if num_nocs != num_rgb:
-            raise ValueError(
-                "The number of nocs images and rgb images do not match. Please check data,"
-                + "found {} nocs images and {} rgb images in dirs:\n".format(num_nocs, num_rgb)
-                + "nocs images: {}\nrgb images: {}\n".format(nocs_dir, rgb_dir)
-            )
+        # if num_nocs != num_rgb:
+        #     raise ValueError(
+        #         "The number of nocs images and rgb images do not match. Please check data,"
+        #         + "found {} nocs images and {} rgb images in dirs:\n".format(num_nocs, num_rgb)
+        #         + "nocs images: {}\nrgb images: {}\n".format(nocs_dir, rgb_dir)
+        #     )
 
         # generate mask image paths list
-        assert os.path.isdir(mask_dir), 'Dataloader given mask iamges directory that does not exist: "%s"' % (mask_dir)
+        assert os.path.isdir(mask_dir), 'Dataloader given mask images directory that does not exist: "%s"' % (mask_dir)
         for ext in self._extension_mask:
             mask_search_str = os.path.join(mask_dir, "*/*" + ext)
             mask_paths = sorted(glob.glob(mask_search_str))
@@ -547,12 +571,12 @@ class SwinDRNetDataset(Dataset):
         num_mask = len(self._datalist_mask)
         if num_mask == 0:
             raise ValueError("No mask images found in given directory. Searched for {}".format(mask_search_str))
-        if num_mask != num_rgb:
-            raise ValueError(
-                "The number of mask images and rgb images do not match. Please check data,"
-                + "found {} mask images and {} rgb images in dirs:\n".format(num_mask, num_rgb)
-                + "mask images: {}\nrgb images: {}\n".format(mask_dir, rgb_dir)
-            )
+        # if num_mask != num_rgb:
+        #     raise ValueError(
+        #         "The number of mask images and rgb images do not match. Please check data,"
+        #         + "found {} mask images and {} rgb images in dirs:\n".format(num_mask, num_rgb)
+        #         + "mask images: {}\nrgb images: {}\n".format(mask_dir, rgb_dir)
+        #     )
 
         assert os.path.isdir(meta_dir), 'Dataloader given metas directory that does not exist: "%s"' % (meta_dir)
         for ext in self._extension_meta:
@@ -563,12 +587,67 @@ class SwinDRNetDataset(Dataset):
         num_meta = len(self._datalist_meta)
         if num_meta == 0:
             raise ValueError("No metas found in given directory. Searched for {}".format(meta_search_str))
-        if num_meta != num_rgb:
-            raise ValueError(
-                "The number of metas and rgb images do not match. Please check data,"
-                + "found {} metas and {} rgb images in dirs:\n".format(num_meta, num_rgb)
-                + "metas: {}\nrgb images: {}\n".format(meta_dir, rgb_dir)
-            )
+        # if num_meta != num_rgb:
+        #     raise ValueError(
+        #         "The number of metas and rgb images do not match. Please check data,"
+        #         + "found {} metas and {} rgb images in dirs:\n".format(num_meta, num_rgb)
+        #         + "metas: {}\nrgb images: {}\n".format(meta_dir, rgb_dir)
+        #     )
+
+        # get the common prefix of all paths
+        # print("rgb first", self._datalist_rgb[0])
+        # print("sim_depth first", self._datalist_sim_depth[0])
+        # print("syn_depth first", self._datalist_syn_depth[0])
+        # print("nocs first", self._datalist_nocs[0])
+        # print("mask first", self._datalist_mask[0])
+        # print("meta first", self._datalist_meta[0])
+
+        # assert num_sim_depth == num_rgb, f"num_sim_depth: {num_sim_depth}, num_rgb: {num_rgb}"
+        # assert num_syn_depth == num_rgb, f"num_syn_depth: {num_syn_depth}, num_rgb: {num_rgb}"
+        # assert num_nocs == num_rgb, f"num_nocs: {num_nocs}, num_rgb: {num_rgb}"
+        # assert num_mask == num_rgb, f"num_mask: {num_mask}, num_rgb: {num_rgb}"
+        # assert num_meta == num_rgb, f"num_meta: {num_meta}, num_rgb: {num_rgb}"
+
+        rgb_name_set = self._get_scene_frame_names_set(self._datalist_rgb)
+        sim_depth_name_set = self._get_scene_frame_names_set(self._datalist_sim_depth)
+        syn_depth_name_set = self._get_scene_frame_names_set(self._datalist_syn_depth)
+        nocs_name_set = self._get_scene_frame_names_set(self._datalist_nocs)
+        mask_name_set = self._get_scene_frame_names_set(self._datalist_mask)
+        meta_name_set = self._get_scene_frame_names_set(self._datalist_meta)
+        common_name_set = (
+            rgb_name_set & sim_depth_name_set & syn_depth_name_set & nocs_name_set & mask_name_set & meta_name_set
+        )
+        rgb_prefix_split = self._datalist_rgb[0].split("/")[:-2]
+        rgb_prefix = "/".join(rgb_prefix_split)
+        sim_depth_prefix_split = self._datalist_sim_depth[0].split("/")[:-2]
+        sim_depth_prefix = "/".join(sim_depth_prefix_split)
+        syn_depth_prefix_split = self._datalist_syn_depth[0].split("/")[:-2]
+        syn_depth_prefix = "/".join(syn_depth_prefix_split)
+        nocs_prefix_split = self._datalist_nocs[0].split("/")[:-2]
+        nocs_prefix = "/".join(nocs_prefix_split)
+        mask_prefix_split = self._datalist_mask[0].split("/")[:-2]
+        mask_prefix = "/".join(mask_prefix_split)
+        meta_prefix_split = self._datalist_meta[0].split("/")[:-2]
+        meta_prefix = "/".join(meta_prefix_split)
+
+        self._datalist_rgb = [rgb_prefix + "/" + name + "_color.png" for name in common_name_set]
+        self._datalist_sim_depth = [sim_depth_prefix + "/" + name + "_simDepthImage.exr" for name in common_name_set]
+        self._datalist_syn_depth = [syn_depth_prefix + "/" + name + "_depth_120.exr" for name in common_name_set]
+        self._datalist_nocs = [nocs_prefix + "/" + name + "_coord.png" for name in common_name_set]
+        self._datalist_mask = [mask_prefix + "/" + name + "_mask.exr" for name in common_name_set]
+        self._datalist_meta = [meta_prefix + "/" + name + "_meta.txt" for name in common_name_set]
+
+    def _get_scene_frame_name(self, path):
+        scene_name = path.split("/")[-2]
+        frame_name = path.split("/")[-1].split("_")[0]
+        return scene_name + "/" + frame_name
+
+    def _get_scene_frame_names_set(self, datalist):
+        """Returns a set of all scene frame names in the dataset"""
+        scene_frame_names_set = set()
+        for path in datalist:
+            scene_frame_names_set.add(self._get_scene_frame_name(path))
+        return scene_frame_names_set
 
     def _activator_masks(self, images, augmenter, parents, default):
         """Used with imgaug to help only apply some augmentations to images and not labels
@@ -601,3 +680,61 @@ class SwinDRNetDataset(Dataset):
         y_e = (indices[..., 0] - y_offset) * z_e / fy
         xyz_img = np.stack([x_e, y_e, z_e], axis=-1)  # Shape: [H x W x 3]
         return xyz_img
+
+
+class SwinDRNetRealTestDataset(Dataset):
+    """
+    Dataset class for training model on estimation of surface normals.
+    Uses imgaug for image augmentations.
+    """
+
+    def __init__(
+        self,
+        fx=446.31,
+        fy=446.31,
+        rgb_dir="",
+        sim_depth_dir="",
+        mask_dir="",
+        meta_dir="",
+        transform=None,
+        input_only=None,
+        material_valid={"transparent": True, "specular": True, "diffuse": False},
+        object_type=None,
+    ):
+        super().__init__()
+        self.rgb_dir = rgb_dir
+        self.sim_depth_dir = sim_depth_dir
+        self.mask_dir = mask_dir
+        self.meta_dir = meta_dir
+        self.fx = fx
+        self.fy = fy
+
+        self.transform = transform
+        self.input_only = input_only
+
+        self.object_type = object_type
+
+        # Create list of filenames
+        self._datalist_rgb = []
+        self._datalist_sim_depth = []  # Variable containing list of all input images filenames in dataset
+        self._datalist_syn_depth = []
+        self._datalist_nocs = []
+        self._datalist_mask = []
+        self._datalist_meta = []
+
+        self._extension_rgb = ["_Color_resize.png"]
+        self._extension_sim_depth = ["_Depth.raw"]  # The file extension of input images
+        self._extension_mask = ["_mask.exr", "_mask.png"]
+        self._extension_meta = ["_meta.txt"]
+
+        self._create_lists_filenames(
+            self.rgb_dir, self.sim_depth_dir, self.syn_depth_dir, self.nocs_dir, self.mask_dir, self.meta_dir
+        )
+
+        # material mask
+        self.mask_transparent = material_valid["transparent"]
+        self.mask_specular = material_valid["specular"]
+        self.mask_diffuse = material_valid["diffuse"]
+
+    def __len__(self):
+        return len(self._datalist_rgb)
