@@ -87,6 +87,7 @@ parser.add_argument(
 parser.add_argument("--tag", help="tag of experiment")
 parser.add_argument("--eval", action="store_true", help="Perform evaluation only")
 parser.add_argument("--throughput", action="store_true", help="Test throughput only")
+parser.add_argument("--val_object_type", type=str, default=None, help="")
 
 
 args = parser.parse_args()

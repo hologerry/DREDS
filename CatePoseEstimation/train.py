@@ -84,7 +84,7 @@ parser.add_argument('--throughput', action='store_true', help='Test throughput o
 args = parser.parse_args()
 config = get_config(args)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "5"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 device_list = [0]
 
 if __name__ == "__main__":
