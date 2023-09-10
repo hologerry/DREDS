@@ -163,4 +163,9 @@ cython_debug/
 *.pth
 data
 results
+results_evaluation
 vis_tmp
+results_dreds
+results_bot_render
+models_dreds
+models_bot_render

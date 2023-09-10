@@ -47,7 +47,7 @@ parser.add_argument("--output_dir", type=str, default="results/DREDS_CatKnown", 
 parser.add_argument(
     "--checkpoint_save_path", type=str, default="models/DREDS", help="Choose a path to save checkpoints"
 )
-
+parser.add_argument("--model_path", type=str, default="./models/checkpoint-iter-00000020.pth")
 
 parser.add_argument("--decode_mode", type=str, default="multi_head", help="Select encode mode")
 parser.add_argument(
@@ -115,7 +115,7 @@ config = get_config(args)
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 device_list = [0]
-model_path = "./models/checkpoint-iter-00000020.pth"
+
 
 
 if __name__ == "__main__":
@@ -136,7 +136,7 @@ if __name__ == "__main__":
 
     net = SwinDRNet(config, img_size=args.img_size, num_classes=args.num_classes).cuda()
     trainer = SwinDRNetTrainer
-    _trainer = trainer(args, net, device_list, model_path)
+    _trainer = trainer(args, net, device_list, args.model_path)
 
     metrics_instance, metrics_background = _trainer.inference()
     with open(os.path.join(args.output_dir, "result.txt"), "w") as f:

@@ -234,17 +234,17 @@ class SwinDRNetTrainer:
                     input_only=None,
                     material_valid=self.material_mask,
                 )
-            elif self.val_data_type == "real_test":
-                db_val = SwinDRNetRealTestDataset(
-                    fx=self.fx_real_input,
-                    fy=self.fy_real_input,
-                    rgb_dir=dataset["rgb"],
-                    sim_depth_dir=dataset["sim_depth"],
-                    mask_dir=dataset["mask"],
-                    transform=augs_test,
-                    input_only=None,
-                    material_valid=self.material_mask,
-                )
+            # elif self.val_data_type == "real_test":
+            #     db_val = SwinDRNetRealTestDataset(
+            #         fx=self.fx_real_input,
+            #         fy=self.fy_real_input,
+            #         rgb_dir=dataset["rgb"],
+            #         sim_depth_dir=dataset["sim_depth"],
+            #         mask_dir=dataset["mask"],
+            #         transform=augs_test,
+            #         input_only=None,
+            #         material_valid=self.material_mask,
+            #     )
             else:
                 db_val = SwinDRNetDataset(
                     fx=self.fx_sim,

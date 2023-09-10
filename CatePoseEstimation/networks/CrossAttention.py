@@ -1,17 +1,20 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
+
 from einops import rearrange
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
-import numpy as np
+
 
 # from swin_transformer import window_partition, window_reverse
 
-class Mlp(nn.Module):
-    """ Multilayer perceptron."""
 
-    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
+class Mlp(nn.Module):
+    """Multilayer perceptron."""
+
+    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.0):
         super().__init__()
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
@@ -62,12 +65,13 @@ def window_reverse(windows, window_size, H, W):
 
 
 class PatchMerging(nn.Module):
-    """ Patch Merging Layer
+    """Patch Merging Layer
 
     Args:
         dim (int): Number of input channels.
         norm_layer (nn.Module, optional): Normalization layer.  Default: nn.LayerNorm
     """
+
     def __init__(self, dim, norm_layer=nn.LayerNorm):
         super().__init__()
         self.dim = dim
@@ -75,7 +79,7 @@ class PatchMerging(nn.Module):
         self.norm = norm_layer(4 * dim)
 
     def forward(self, x, H, W):
-        """ Forward function.
+        """Forward function.
 
         Args:
             x: Input feature, tensor size (B, H*W, C).
@@ -105,7 +109,7 @@ class PatchMerging(nn.Module):
 
 
 class WindowCrossAttention(nn.Module):
-    """ Window based multi-head self attention (W-MSA) module with relative position bias.
+    """Window based multi-head self attention (W-MSA) module with relative position bias.
     It supports both of shifted and non-shifted window.
 
     Args:
@@ -118,20 +122,21 @@ class WindowCrossAttention(nn.Module):
         proj_drop (float, optional): Dropout ratio of output. Default: 0.0
     """
 
-    def __init__(self, dim, window_size, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
-
+    def __init__(self, dim, window_size, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0.0, proj_drop=0.0):
         super().__init__()
         self.dim = dim
         self.window_size = window_size  # Wh, Ww
         self.num_heads = num_heads
         head_dim = dim // num_heads
-        self.scale = qk_scale or head_dim ** -0.5
+        self.scale = qk_scale or head_dim**-0.5
 
         # define a parameter table of relative position bias
         self.relative_position_bias_table_1 = nn.Parameter(
-            torch.zeros((2 * window_size[0] - 1) * (2 * window_size[1] - 1), num_heads))  # 2*Wh-1 * 2*Ww-1, nH
+            torch.zeros((2 * window_size[0] - 1) * (2 * window_size[1] - 1), num_heads)
+        )  # 2*Wh-1 * 2*Ww-1, nH
         self.relative_position_bias_table_2 = nn.Parameter(
-            torch.zeros((2 * window_size[0] - 1) * (2 * window_size[1] - 1), num_heads))  # 2*Wh-1 * 2*Ww-1, nH
+            torch.zeros((2 * window_size[0] - 1) * (2 * window_size[1] - 1), num_heads)
+        )  # 2*Wh-1 * 2*Ww-1, nH
 
         # get pair-wise relative position index for each token inside the window
         coords_h = torch.arange(self.window_size[0])
@@ -160,14 +165,13 @@ class WindowCrossAttention(nn.Module):
 
         # self.fuse = nn.Linear(dim * 2, dim)
 
-        trunc_normal_(self.relative_position_bias_table_1, std=.02)
-        trunc_normal_(self.relative_position_bias_table_2, std=.02)
+        trunc_normal_(self.relative_position_bias_table_1, std=0.02)
+        trunc_normal_(self.relative_position_bias_table_2, std=0.02)
 
         self.softmax = nn.Softmax(dim=-1)
 
-
     def forward(self, x, mask=None):
-        """ Forward function.
+        """Forward function.
 
         Args:
             x: input features with shape of (num_windows*B, N, C)
@@ -175,8 +179,12 @@ class WindowCrossAttention(nn.Module):
         """
         branch_1, branch_2 = x
         B_, N, C = branch_1.shape
-        qkv_1 = self.qkv_branch_1(branch_1).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        qkv_2 = self.qkv_branch_2(branch_2).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        qkv_1 = (
+            self.qkv_branch_1(branch_1).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        )
+        qkv_2 = (
+            self.qkv_branch_2(branch_2).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        )
 
         q_1, k_1, v_1 = qkv_1[0], qkv_1[1], qkv_1[2]  # make torchscript happy (cannot use tensor as tuple)
         q_2, k_2, v_2 = qkv_2[0], qkv_2[1], qkv_2[2]  # make torchscript happy (cannot use tensor as tuple)
@@ -184,13 +192,15 @@ class WindowCrossAttention(nn.Module):
         q_1 = q_1 * self.scale
         q_2 = q_2 * self.scale
 
-        attn_1 = (q_2 @ k_1.transpose(-2, -1))
-        attn_2 = (q_1 @ k_2.transpose(-2, -1))
+        attn_1 = q_2 @ k_1.transpose(-2, -1)
+        attn_2 = q_1 @ k_2.transpose(-2, -1)
 
         relative_position_bias_1 = self.relative_position_bias_table_1[self.relative_position_index.view(-1)].view(
-            self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1)  # Wh*Ww,Wh*Ww,nH
+            self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1
+        )  # Wh*Ww,Wh*Ww,nH
         relative_position_bias_2 = self.relative_position_bias_table_2[self.relative_position_index.view(-1)].view(
-            self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1)  # Wh*Ww,Wh*Ww,nH
+            self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1
+        )  # Wh*Ww,Wh*Ww,nH
 
         relative_position_bias_1 = relative_position_bias_1.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
         relative_position_bias_2 = relative_position_bias_2.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
@@ -231,7 +241,7 @@ class WindowCrossAttention(nn.Module):
 
 
 class SwinCrossAttentionBlock(nn.Module):
-    """ Swin Cross Attention Block.
+    """Swin Cross Attention Block.
     Args:
         dim (int): Number of input channels.
         num_heads (int): Number of attention heads.
@@ -247,9 +257,21 @@ class SwinCrossAttentionBlock(nn.Module):
         norm_layer (nn.Module, optional): Normalization layer.  Default: nn.LayerNorm
     """
 
-    def __init__(self, dim, num_heads, window_size=7, shift_size=0,
-                 mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0., drop_path=0.,
-                 act_layer=nn.GELU, norm_layer=nn.LayerNorm):
+    def __init__(
+        self,
+        dim,
+        num_heads,
+        window_size=7,
+        shift_size=0,
+        mlp_ratio=4.0,
+        qkv_bias=True,
+        qk_scale=None,
+        drop=0.0,
+        attn_drop=0.0,
+        drop_path=0.0,
+        act_layer=nn.GELU,
+        norm_layer=nn.LayerNorm,
+    ):
         super().__init__()
         self.dim = dim
         self.num_heads = num_heads
@@ -262,10 +284,16 @@ class SwinCrossAttentionBlock(nn.Module):
         self.norm1_branch_2 = norm_layer(dim)
 
         self.attn = WindowCrossAttention(
-            dim, window_size=to_2tuple(self.window_size), num_heads=num_heads,
-            qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
+            dim,
+            window_size=to_2tuple(self.window_size),
+            num_heads=num_heads,
+            qkv_bias=qkv_bias,
+            qk_scale=qk_scale,
+            attn_drop=attn_drop,
+            proj_drop=drop,
+        )
 
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
         self.norm2_branch_1 = norm_layer(dim)
         self.norm2_branch_2 = norm_layer(dim)
 
@@ -277,7 +305,7 @@ class SwinCrossAttentionBlock(nn.Module):
         self.W = None
 
     def forward(self, x, mask_matrix):
-        """ Forward function.
+        """Forward function.
 
         Args:
             x: Input feature, tensor size (B, H*W, C).
@@ -319,8 +347,12 @@ class SwinCrossAttentionBlock(nn.Module):
         x_windows_branch_1 = window_partition(shifted_branch_1, self.window_size)  # nW*B, window_size, window_size, C
         x_windows_branch_2 = window_partition(shifted_branch_2, self.window_size)  # nW*B, window_size, window_size, C
 
-        x_windows_branch_1 = x_windows_branch_1.view(-1, self.window_size * self.window_size, C)  # nW*B, window_size*window_size, C
-        x_windows_branch_2 = x_windows_branch_2.view(-1, self.window_size * self.window_size, C)  # nW*B, window_size*window_size, C
+        x_windows_branch_1 = x_windows_branch_1.view(
+            -1, self.window_size * self.window_size, C
+        )  # nW*B, window_size*window_size, C
+        x_windows_branch_2 = x_windows_branch_2.view(
+            -1, self.window_size * self.window_size, C
+        )  # nW*B, window_size*window_size, C
 
         # W-MSA/SW-MSA
         x_windows = tuple([x_windows_branch_1, x_windows_branch_2])
@@ -360,7 +392,7 @@ class SwinCrossAttentionBlock(nn.Module):
 
 
 class BasicCrossAttentionLayer(nn.Module):
-    """ A basic Swin Transformer layer for one stage.
+    """A basic Swin Transformer layer for one stage.
 
     Args:
         dim (int): Number of feature channels
@@ -378,20 +410,22 @@ class BasicCrossAttentionLayer(nn.Module):
         use_checkpoint (bool): Whether to use checkpointing to save memory. Default: False.
     """
 
-    def __init__(self,
-                 dim,
-                 depth,
-                 num_heads,
-                 window_size=7,
-                 mlp_ratio=4.,
-                 qkv_bias=True,
-                 qk_scale=None,
-                 drop=0.,
-                 attn_drop=0.,
-                 drop_path=0.,
-                 norm_layer=nn.LayerNorm,
-                 downsample=None,
-                 use_checkpoint=False):
+    def __init__(
+        self,
+        dim,
+        depth,
+        num_heads,
+        window_size=7,
+        mlp_ratio=4.0,
+        qkv_bias=True,
+        qk_scale=None,
+        drop=0.0,
+        attn_drop=0.0,
+        drop_path=0.0,
+        norm_layer=nn.LayerNorm,
+        downsample=None,
+        use_checkpoint=False,
+    ):
         super().__init__()
         self.window_size = window_size
         self.shift_size = window_size // 2
@@ -399,22 +433,26 @@ class BasicCrossAttentionLayer(nn.Module):
         self.use_checkpoint = use_checkpoint
 
         # build blocks
-        self.blocks = nn.ModuleList([
-            SwinCrossAttentionBlock(
-                dim=dim,
-                num_heads=num_heads,
-                window_size=window_size,
-                shift_size=0 if (i % 2 == 0) else window_size // 2,
-                mlp_ratio=mlp_ratio,
-                qkv_bias=qkv_bias,
-                qk_scale=qk_scale,
-                drop=drop,
-                attn_drop=attn_drop,
-                drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-                norm_layer=norm_layer)
-            for i in range(depth)])
+        self.blocks = nn.ModuleList(
+            [
+                SwinCrossAttentionBlock(
+                    dim=dim,
+                    num_heads=num_heads,
+                    window_size=window_size,
+                    shift_size=0 if (i % 2 == 0) else window_size // 2,
+                    mlp_ratio=mlp_ratio,
+                    qkv_bias=qkv_bias,
+                    qk_scale=qk_scale,
+                    drop=drop,
+                    attn_drop=attn_drop,
+                    drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                    norm_layer=norm_layer,
+                )
+                for i in range(depth)
+            ]
+        )
 
-        self.fuse = nn.Linear(dim*2, dim)
+        self.fuse = nn.Linear(dim * 2, dim)
         # patch merging layer
         if downsample is not None:
             self.downsample = downsample(dim=dim, norm_layer=norm_layer)
@@ -422,7 +460,7 @@ class BasicCrossAttentionLayer(nn.Module):
             self.downsample = None
 
     def forward(self, x, H, W):
-        """ Forward function.
+        """Forward function.
 
         Args:
             x: Input feature, tensor size (B, H*W, C).
@@ -433,12 +471,16 @@ class BasicCrossAttentionLayer(nn.Module):
         Hp = int(np.ceil(H / self.window_size)) * self.window_size
         Wp = int(np.ceil(W / self.window_size)) * self.window_size
         img_mask = torch.zeros((1, Hp, Wp, 1), device=x[0].device)  # 1 Hp Wp 1
-        h_slices = (slice(0, -self.window_size),
-                    slice(-self.window_size, -self.shift_size),
-                    slice(-self.shift_size, None))
-        w_slices = (slice(0, -self.window_size),
-                    slice(-self.window_size, -self.shift_size),
-                    slice(-self.shift_size, None))
+        h_slices = (
+            slice(0, -self.window_size),
+            slice(-self.window_size, -self.shift_size),
+            slice(-self.shift_size, None),
+        )
+        w_slices = (
+            slice(0, -self.window_size),
+            slice(-self.window_size, -self.shift_size),
+            slice(-self.shift_size, None),
+        )
         cnt = 0
         for h in h_slices:
             for w in w_slices:
@@ -456,7 +498,6 @@ class BasicCrossAttentionLayer(nn.Module):
                 x = checkpoint.checkpoint(blk, x, attn_mask)
             else:
                 x = blk(x, attn_mask)
-        
 
         branch_1, branch_2 = x
 
@@ -473,10 +514,7 @@ class BasicCrossAttentionLayer(nn.Module):
 
 
 class CrossAttention(nn.Module):
-    def __init__(self, 
-                 in_channel=96,      # feature map dim
-                 depth=2,                 
-                 num_heads=3):
+    def __init__(self, in_channel=96, depth=2, num_heads=3):  # feature map dim
         super().__init__()
         self.cross_attn_layer = BasicCrossAttentionLayer(dim=in_channel, depth=depth, num_heads=num_heads)
         self.num_feature = in_channel
@@ -484,15 +522,14 @@ class CrossAttention(nn.Module):
         # add a norm layer for each output
         self.norm_layer = nn.LayerNorm(in_channel)
 
-
     def forward(self, x):
         rgb_feature_map, xyz_feature_map = x
         norm_layer = self.norm_layer
         cross_attn_layer = self.cross_attn_layer
-        
+
         B, C, H, W = rgb_feature_map.shape
-        rgb_feature_map = rgb_feature_map.permute(0, 2, 3, 1).view(B, H*W, C)
-        xyz_feature_map = xyz_feature_map.permute(0, 2, 3, 1).view(B, H*W, C)
+        rgb_feature_map = rgb_feature_map.permute(0, 2, 3, 1).view(B, H * W, C)
+        xyz_feature_map = xyz_feature_map.permute(0, 2, 3, 1).view(B, H * W, C)
 
         x = tuple([rgb_feature_map, xyz_feature_map])
         x_out, H, W, x, Wh, Ww = cross_attn_layer(x, H, W)
@@ -500,11 +537,10 @@ class CrossAttention(nn.Module):
         out = x_out.view(-1, H, W, self.num_feature).permute(0, 3, 1, 2).contiguous()
         return out
 
-
     def init_weights(self):
         def _init_weights(m):
             if isinstance(m, nn.Linear):
-                trunc_normal_(m.weight, std=.02)
+                trunc_normal_(m.weight, std=0.02)
                 if isinstance(m, nn.Linear) and m.bias is not None:
                     nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.LayerNorm):
